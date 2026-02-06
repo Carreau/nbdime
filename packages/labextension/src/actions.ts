@@ -108,6 +108,23 @@ export function diffNotebookGit(args: {
 
 const isNbInGitCache = new Map<string, Promise<boolean>>();
 
+async function fetchIsNbInGit(
+  path: string,
+  serverSettings?: ServerConnection.ISettings,
+): Promise<boolean> {
+  const settings = serverSettings ?? ServerConnection.makeSettings();
+  const response = await ServerConnection.makeRequest(
+    URLExt.join(urlRStrip(settings.baseUrl), '/nbdime/api/isgit'),
+    { method: 'POST', body: JSON.stringify({ path }) },
+    settings,
+  );
+  if (!response.ok) {
+    throw response;
+  }
+  const data = (await response.json()) as IApiResponse;
+  return data['is_git'];
+}
+
 export function isNbInGit(args: {
   readonly path: string;
   serverSettings?: ServerConnection.ISettings;
@@ -116,25 +133,7 @@ export function isNbInGit(args: {
   if (cached !== undefined) {
     return cached;
   }
-  let request = {
-    method: 'POST',
-    body: JSON.stringify({ path: args.path }),
-  };
-  let settings = args.serverSettings ?? ServerConnection.makeSettings();
-  const promise = ServerConnection.makeRequest(
-    URLExt.join(urlRStrip(settings.baseUrl), '/nbdime/api/isgit'),
-    request,
-    settings,
-  )
-    .then(response => {
-      if (!response.ok) {
-        return Promise.reject(response);
-      }
-      return response.json() as Promise<IApiResponse>;
-    })
-    .then(data => {
-      return data['is_git'];
-    });
+  const promise = fetchIsNbInGit(args.path, args.serverSettings);
   isNbInGitCache.set(args.path, promise);
   promise.finally(() => {
     setTimeout(() => {
